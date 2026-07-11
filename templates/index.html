@@ -5,478 +5,113 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>BioSpark Dashboard</title>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}"/>
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    :root {
-      --bg:         #ECE3D2;
-      --surface:    #F7F1E8;
-      --card:       #FFFFFF;
-      --pink-dark:  #C66F80;
-      --pink-mid:   #F4C7D0;
-      --pink-light: #FCEBF1;
-      --green-dark: #4A6644;
-      --green-mid:  #9FAA74;
-      --green-light:#D7DAB3;
-      --text:       #2D2D2D;
-      --muted:      #7A7A6A;
-      --border:     #DDD5C4;
-      --sans:       'DM Sans', sans-serif;
-      --mono:       'DM Mono', monospace;
-      --radius:     14px;
-      --shadow:     0 2px 12px rgba(74,102,68,0.08);
-    }
-
-    body {
-      font-family: var(--sans);
-      background: var(--bg);
-      color: var(--text);
-      display: flex;
-      min-height: 100vh;
-    }
-
-    /* ── Sidebar ── */
-    .sidebar {
-      width: 220px;
-      background: var(--green-dark);
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      padding: 28px 0;
-      position: fixed;
-      top: 0; left: 0;
-      z-index: 100;
-    }
-
-    .sidebar-logo {
-      padding: 0 24px 28px;
-      border-bottom: 1px solid rgba(255,255,255,0.1);
-      margin-bottom: 20px;
-    }
-
-    .sidebar-logo h1 {
-      font-size: 22px;
-      font-weight: 700;
-      color: #fff;
-      letter-spacing: -0.5px;
-    }
-
-    .sidebar-logo h1 span { color: var(--pink-mid); }
-
-    .sidebar-logo p {
-      font-size: 11px;
-      color: rgba(255,255,255,0.5);
-      margin-top: 3px;
-    }
-
-    .sidebar-section {
-      padding: 0 16px;
-      margin-bottom: 6px;
-    }
-
-    .sidebar-label {
-      font-size: 10px;
-      font-weight: 600;
-      letter-spacing: 1.5px;
-      text-transform: uppercase;
-      color: rgba(255,255,255,0.35);
-      padding: 0 8px;
-      margin-bottom: 6px;
-    }
-
-    .nav-item {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 10px 12px;
-      border-radius: 10px;
-      cursor: pointer;
-      font-size: 14px;
-      color: rgba(255,255,255,0.65);
-      transition: all 0.15s;
-      margin-bottom: 2px;
-    }
-
-    .nav-item:hover { background: rgba(255,255,255,0.08); color: #fff; }
-    .nav-item.active { background: var(--pink-dark); color: #fff; font-weight: 600; }
-    .nav-item .icon { font-size: 16px; width: 20px; text-align: center; }
-
-    .sidebar-footer {
-      margin-top: auto;
-      padding: 16px 24px;
-      border-top: 1px solid rgba(255,255,255,0.1);
-      font-size: 11px;
-      color: rgba(255,255,255,0.35);
-      line-height: 1.6;
-    }
-
-    /* ── Main ── */
-    .main {
-      margin-left: 220px;
-      flex: 1;
-      padding: 32px;
-      min-height: 100vh;
-    }
-
-    /* ── Top bar ── */
-    .topbar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 28px;
-    }
-
-    .topbar-left h2 {
-      font-size: 24px;
-      font-weight: 700;
-      letter-spacing: -0.5px;
-    }
-
-    .topbar-left p {
-      font-size: 13px;
-      color: var(--muted);
-      margin-top: 2px;
-    }
-
-    .topbar-right {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .pill {
-      display: flex;
-      align-items: center;
-      gap: 7px;
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      padding: 7px 14px;
-      font-size: 12px;
-      color: var(--green-dark);
-      font-weight: 500;
-      box-shadow: var(--shadow);
-    }
-
-    .dot {
-      width: 7px; height: 7px;
-      border-radius: 50%;
-      background: var(--green-mid);
-      animation: pulse 2s infinite;
-    }
-
-    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
-
-    /* ── Grid ── */
-    .grid-4 {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 16px;
-      margin-bottom: 20px;
-    }
-
-    .grid-2 {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
-      margin-bottom: 20px;
-    }
-
-    .grid-3-2 {
-      display: grid;
-      grid-template-columns: 2fr 1fr;
-      gap: 16px;
-      margin-bottom: 20px;
-    }
-
-    /* ── Cards ── */
-    .card {
-      background: var(--card);
-      border-radius: var(--radius);
-      padding: 20px;
-      box-shadow: var(--shadow);
-      border: 1px solid var(--border);
-    }
-
-    .card-label {
-      font-size: 11px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      color: var(--muted);
-      margin-bottom: 8px;
-    }
-
-    .card-value {
-      font-size: 32px;
-      font-weight: 700;
-      font-family: var(--mono);
-      letter-spacing: -1px;
-      line-height: 1;
-      color: var(--green-dark);
-    }
-
-    .card-unit {
-      font-size: 12px;
-      color: var(--muted);
-      margin-top: 5px;
-    }
-
-    .card-accent-pink { border-top: 3px solid var(--pink-dark); }
-    .card-accent-green { border-top: 3px solid var(--green-dark); }
-    .card-accent-sage { border-top: 3px solid var(--green-mid); }
-    .card-accent-blush { border-top: 3px solid var(--pink-mid); }
-
-    .card-title {
-      font-size: 14px;
-      font-weight: 600;
-      color: var(--text);
-      margin-bottom: 16px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-
-    .card-title span {
-      font-size: 11px;
-      color: var(--muted);
-      font-weight: 400;
-    }
-
-    /* ── Status badge ── */
-    .badge {
-      display: inline-block;
-      padding: 3px 10px;
-      border-radius: 20px;
-      font-size: 11px;
-      font-weight: 600;
-    }
-
-    .badge-notready { background: #fde8e8; color: #b94040; }
-    .badge-building { background: #fef3cd; color: #8a6200; }
-    .badge-good     { background: #dff0d8; color: #2d6a2d; }
-
-    /* ── Progress bars ── */
-    .bar-row {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 10px;
-    }
-
-    .bar-date {
-      font-family: var(--mono);
-      font-size: 11px;
-      color: var(--muted);
-      width: 46px;
-      flex-shrink: 0;
-    }
-
-    .bar-track {
-      flex: 1;
-      background: var(--pink-light);
-      border-radius: 4px;
-      height: 8px;
-      overflow: hidden;
-    }
-
-    .bar-fill {
-      height: 100%;
-      border-radius: 4px;
-      background: linear-gradient(90deg, var(--green-mid), var(--green-dark));
-      transition: width 1s ease;
-    }
-
-    .bar-val {
-      font-family: var(--mono);
-      font-size: 11px;
-      color: var(--text);
-      width: 32px;
-      text-align: right;
-      flex-shrink: 0;
-    }
-
-    /* ── Table ── */
-    table { width: 100%; border-collapse: collapse; }
-
-    thead th {
-      padding: 10px 14px;
-      font-size: 11px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      color: var(--muted);
-      background: var(--bg);
-      text-align: left;
-      border-bottom: 1px solid var(--border);
-    }
-
-    tbody tr {
-      border-bottom: 1px solid var(--border);
-      transition: background 0.12s;
-    }
-
-    tbody tr:last-child { border-bottom: none; }
-    tbody tr:hover { background: var(--pink-light); }
-
-    tbody td {
-      padding: 12px 14px;
-      font-size: 13px;
-      font-family: var(--mono);
-    }
-
-    /* ── Digital Twin ── */
     #twin-canvas {
       width: 100%;
-      height: 340px;
+      height: 320px;
       border-radius: 10px;
-      background: #0d1a0f;
+      background: #10231a;
       overflow: hidden;
       position: relative;
     }
-
-    .twin-label {
-      position: absolute;
-      font-size: 11px;
-      color: rgba(255,255,255,0.6);
-      font-family: var(--mono);
-      pointer-events: none;
-    }
-
     .twin-info {
       position: absolute;
       bottom: 12px;
       left: 12px;
       font-family: var(--mono);
       font-size: 10px;
-      color: rgba(255,255,255,0.45);
+      color: rgba(255,255,255,0.55);
     }
-
-    /* ── Source strip ── */
-    .source-strip {
-      background: var(--pink-light);
-      border: 1px solid var(--pink-mid);
-      border-radius: 10px;
-      padding: 10px 16px;
-      font-size: 12px;
-      color: var(--pink-dark);
+    .twin-open-link {
+      position: absolute;
+      top: 12px;
+      right: 12px;
       font-family: var(--mono);
-      display: flex;
-      justify-content: space-between;
-      margin-bottom: 20px;
+      font-size: 11px;
+      color: #fff;
+      background: var(--pink-dark);
+      padding: 5px 10px;
+      border-radius: 8px;
+      text-decoration: none;
     }
-
-    canvas { display: block; }
-
-    @media (max-width: 900px) {
-      .grid-4 { grid-template-columns: 1fr 1fr; }
-      .grid-3-2 { grid-template-columns: 1fr; }
-      .grid-2 { grid-template-columns: 1fr; }
-    }
+    .twin-open-link:hover { background: #b45f70; }
   </style>
 </head>
 <body>
 
-<!-- Sidebar -->
-<aside class="sidebar">
-  <div class="sidebar-logo">
-    <h1>Bio<span>Spark</span></h1>
-    <p>Group 2 · MFB2102 ETP II</p>
-  </div>
+{% set active_page = 'dashboard' %}
+{% include '_sidebar.html' %}
 
-  <div class="sidebar-section">
-    <div class="sidebar-label">Monitor</div>
-    <div class="nav-item active"><span class="icon">🌿</span> Dashboard</div>
-    <div class="nav-item"><span class="icon">📊</span> Analytics</div>
-    <div class="nav-item"><span class="icon">🧬</span> Digital Twin</div>
-  </div>
-
-  <div class="sidebar-section" style="margin-top:16px">
-    <div class="sidebar-label">System</div>
-    <div class="nav-item"><span class="icon">💾</span> SD Card Log</div>
-    <div class="nav-item"><span class="icon">⚡</span> Power Status</div>
-  </div>
-
-  <div class="sidebar-footer">
-    Coach: Dr Apurav Krishna Koyande<br/>
-    UTP · May 2026
-  </div>
-</aside>
-
-<!-- Main content -->
 <main class="main">
 
-  <!-- Topbar -->
   <div class="topbar">
     <div class="topbar-left">
-      <h2>Welcome back, Safa 👋</h2>
+      <h2>Welcome back, Safa &#128075;</h2>
       <p id="topbar-sub">Loading latest readings from SD Card...</p>
     </div>
     <div class="topbar-right">
       <div class="pill"><div class="dot"></div> SD Card: Connected</div>
-      <div class="pill">⚡ Powerbank</div>
-      <div class="pill" id="pill-time">–</div>
+      <div class="pill">&#9889; Powerbank</div>
+      <div class="pill" id="pill-time">&mdash;</div>
     </div>
   </div>
 
-  <!-- Source strip -->
   <div class="source-strip">
-    <span>📦 Source: SD Card (data.csv) &nbsp;·&nbsp; Sensor: DS18B20 + MQ-4 &nbsp;·&nbsp; Power: Powerbank</span>
-    <span id="strip-time">–</span>
+    <span>&#128230; Source: SD Card (data.csv) &nbsp;&middot;&nbsp; Sensor: DS18B20 + MQ-4 &nbsp;&middot;&nbsp; Power: Powerbank</span>
+    <span id="strip-time">&mdash;</span>
   </div>
 
-  <!-- Stat cards -->
   <div class="grid-4">
     <div class="card card-accent-green">
-      <div class="card-label">🌡 Digester Temp</div>
-      <div class="card-value" id="s-temp">–</div>
-      <div class="card-unit">°C · DS18B20 probe</div>
+      <div class="card-label">&#127777; Digester Temp</div>
+      <div class="card-value" id="s-temp">&mdash;</div>
+      <div class="card-unit">&deg;C &middot; DS18B20 probe</div>
     </div>
     <div class="card card-accent-pink">
-      <div class="card-label">🔥 Methane (raw)</div>
-      <div class="card-value" id="s-methane">–</div>
-      <div class="card-unit">analog · MQ-4 sensor</div>
-    </div>
-    <div class="card card-accent-sage">
-      <div class="card-label">📋 Gas Status</div>
-      <div class="card-value" id="s-status" style="font-size:18px;padding-top:6px">–</div>
-      <div class="card-unit">current condition</div>
+      <div class="card-label">&#128293; Methane (raw)</div>
+      <div class="card-value" id="s-methane">&mdash;</div>
+      <div class="card-unit">analog &middot; MQ-4 sensor</div>
     </div>
     <div class="card card-accent-blush">
-      <div class="card-label">📅 Run Duration</div>
-      <div class="card-value" style="font-size:20px;padding-top:4px">12 days</div>
-      <div class="card-unit">03 Jul → 15 Jul 2026</div>
+      <div class="card-label">&#129517; Methane (est.)</div>
+      <div class="card-value" id="s-ppm" style="font-size:26px">&mdash;</div>
+      <div class="card-unit">ppm &middot; calibrated estimate</div>
+    </div>
+    <div class="card card-accent-sage">
+      <div class="card-label">&#128203; Gas Status</div>
+      <div class="card-value" id="s-status" style="font-size:18px;padding-top:6px">&mdash;</div>
+      <div class="card-unit" id="s-phase">current condition</div>
     </div>
   </div>
 
-  <!-- Charts row -->
   <div class="grid-2">
     <div class="card">
-      <div class="card-title">🌡 Temperature Over Time <span>DS18B20</span></div>
+      <div class="card-title">&#127777; Temperature Over Time <span>DS18B20</span></div>
       <canvas id="tempChart" height="160"></canvas>
     </div>
     <div class="card">
-      <div class="card-title">🔥 Methane Level Over Time <span>MQ-4</span></div>
+      <div class="card-title">&#128293; Methane Level Over Time <span>MQ-4 raw + ppm</span></div>
       <canvas id="methaneChart" height="160"></canvas>
     </div>
   </div>
 
-  <!-- Digital Twin + Progress bars -->
   <div class="grid-3-2">
     <div class="card">
-      <div class="card-title">🧬 Digital Twin – Biogas Pipeline <span>3D live model</span></div>
+      <div class="card-title">&#129516; Digital Twin &mdash; Biogas Pipeline <span>3D live preview</span></div>
       <div id="twin-canvas">
-        <canvas id="threeCanvas" style="width:100%;height:340px;border-radius:10px;"></canvas>
+        <canvas id="threeCanvas" style="width:100%;height:320px;border-radius:10px;"></canvas>
         <div class="twin-info" id="twin-info">Initializing...</div>
+        <a class="twin-open-link" href="{{ url_for('twin') }}">Open full 3D view &#8594;</a>
       </div>
     </div>
 
     <div class="card">
-      <div class="card-title">📊 Methane Build-up <span>per reading</span></div>
+      <div class="card-title">&#128202; Methane Build-up <span>per reading</span></div>
       <div id="bar-wrap"></div>
 
       <div style="margin-top:20px">
-        <div class="card-title" style="margin-bottom:10px">📋 All Readings</div>
+        <div class="card-title" style="margin-bottom:10px">&#128203; All Readings</div>
         <table>
           <thead>
             <tr>
@@ -497,9 +132,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
-// ══════════════════════════════════════════
-// DATA
-// ══════════════════════════════════════════
 async function loadData() {
   const res  = await fetch("/api/data");
   const json = await res.json();
@@ -518,188 +150,109 @@ function statusColor(s) {
   return "#4A6644";
 }
 
-// ══════════════════════════════════════════
-// THREE.JS DIGITAL TWIN
-// ══════════════════════════════════════════
 function initTwin(methane, temp) {
   const canvas = document.getElementById("threeCanvas");
   const W = canvas.parentElement.clientWidth;
-  const H = 340;
+  const H = 320;
   canvas.width = W; canvas.height = H;
 
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
   renderer.setSize(W, H);
   renderer.setPixelRatio(window.devicePixelRatio);
-  renderer.setClearColor(0x0d1a0f, 1);
-  renderer.shadowMap.enabled = true;
+  renderer.setClearColor(0x10231a, 1);
 
   const scene  = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(50, W / H, 0.1, 100);
-  camera.position.set(0, 6, 18);
-  camera.lookAt(0, 1, 0);
+  const camera = new THREE.PerspectiveCamera(45, W / H, 0.1, 100);
+  camera.position.set(2, 7, 20);
+  camera.lookAt(0, 2, 0);
 
-  // Lights
-  scene.add(new THREE.AmbientLight(0xffffff, 0.5));
-  const dir = new THREE.DirectionalLight(0xffffff, 0.9);
+  scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+  const dir = new THREE.DirectionalLight(0xffffff, 0.85);
   dir.position.set(5, 10, 8);
   scene.add(dir);
 
-  // ── Digester drum ──
   const digGeo  = new THREE.CylinderGeometry(1.4, 1.4, 3, 32, 1, true);
-  const digMat  = new THREE.MeshPhongMaterial({ color: 0x4A6644, transparent: true, opacity: 0.35, side: THREE.DoubleSide });
+  const digMat  = new THREE.MeshPhongMaterial({ color: 0x4A6644, transparent: true, opacity: 0.4, side: THREE.DoubleSide });
   const digMesh = new THREE.Mesh(digGeo, digMat);
-  digMesh.position.set(-5.5, 1.5, 0);
+  digMesh.position.set(-7, 1.5, 0);
   scene.add(digMesh);
 
-  // Slurry inside digester
-  const slurryH = 1.8;
-  const slurryGeo = new THREE.CylinderGeometry(1.3, 1.3, slurryH, 32);
-  const slurryMat = new THREE.MeshPhongMaterial({ color: 0x5a3a1a, opacity: 0.9, transparent: true });
+  const slurryGeo = new THREE.CylinderGeometry(1.3, 1.3, 1.8, 32);
+  const slurryMat = new THREE.MeshPhongMaterial({ color: 0x6b4423, opacity: 0.9, transparent: true });
   const slurry    = new THREE.Mesh(slurryGeo, slurryMat);
-  slurry.position.set(-5.5, slurryH / 2, 0);
+  slurry.position.set(-7, 0.9, 0);
   scene.add(slurry);
 
-  // Digester lid
-  const lidGeo = new THREE.CylinderGeometry(1.4, 1.4, 0.1, 32);
-  const lid    = new THREE.Mesh(lidGeo, new THREE.MeshPhongMaterial({ color: 0x2d4a2a }));
-  lid.position.set(-5.5, 3.05, 0);
-  scene.add(lid);
-
-  // Stirrer shaft
-  const shaftGeo = new THREE.CylinderGeometry(0.06, 0.06, 3.2, 8);
-  const shaft    = new THREE.Mesh(shaftGeo, new THREE.MeshPhongMaterial({ color: 0xcccccc }));
-  shaft.position.set(-5.5, 1.6, 0);
-  scene.add(shaft);
-
-  // Stirrer blades
-  const bladeGroup = new THREE.Group();
-  bladeGroup.position.set(-5.5, 1.2, 0);
-  const bladeMat = new THREE.MeshPhongMaterial({ color: 0x9FAA74 });
-  [-1, 1].forEach(sign => {
-    const bGeo = new THREE.BoxGeometry(2.4, 0.08, 0.2);
-    const b    = new THREE.Mesh(bGeo, bladeMat);
-    b.rotation.y = sign * Math.PI / 4;
-    bladeGroup.add(b);
-  });
-  scene.add(bladeGroup);
-
-  // ── Pipe: digester → H2S filter ──
-  const pipeMat = new THREE.MeshPhongMaterial({ color: 0x888888 });
-  const p1Geo   = new THREE.CylinderGeometry(0.08, 0.08, 3, 8);
+  const pipeMat = new THREE.MeshPhongMaterial({ color: 0x9a9488 });
+  const p1Geo   = new THREE.CylinderGeometry(0.08, 0.08, 6, 8);
   const p1      = new THREE.Mesh(p1Geo, pipeMat);
   p1.rotation.z = Math.PI / 2;
-  p1.position.set(-3.3, 2.8, 0);
+  p1.position.set(-3.5, 2.9, 0);
   scene.add(p1);
 
-  // ── H2S Filter ──
-  const filterGeo = new THREE.CylinderGeometry(0.5, 0.5, 2, 16);
-  const filterMat = new THREE.MeshPhongMaterial({ color: 0xC66F80, transparent: true, opacity: 0.75 });
+  const filterGeo = new THREE.CylinderGeometry(0.5, 0.5, 1.6, 16);
+  const filterMat = new THREE.MeshPhongMaterial({ color: 0xC66F80, transparent: true, opacity: 0.8 });
   const filter    = new THREE.Mesh(filterGeo, filterMat);
-  filter.position.set(-1.5, 1, 0);
+  filter.position.set(0, 1.2, 0);
   scene.add(filter);
 
-  // Filter lid top
-  const flGeo = new THREE.CylinderGeometry(0.5, 0.5, 0.1, 16);
-  const fl    = new THREE.Mesh(flGeo, new THREE.MeshPhongMaterial({ color: 0x7a3040 }));
-  fl.position.set(-1.5, 2.05, 0);
-  scene.add(fl);
-
-  // ── Pipe: filter → storage tank ──
-  const p2Geo = new THREE.CylinderGeometry(0.08, 0.08, 3.5, 8);
+  const p2Geo = new THREE.CylinderGeometry(0.08, 0.08, 6, 8);
   const p2    = new THREE.Mesh(p2Geo, pipeMat);
   p2.rotation.z = Math.PI / 2;
-  p2.position.set(0.3, 2.8, 0);
+  p2.position.set(4, 2.9, 0);
   scene.add(p2);
 
-  // ── Biogas storage tank ──
-  const tankGeo  = new THREE.CylinderGeometry(1.8, 1.8, 4, 32, 1, true);
-  const tankMat  = new THREE.MeshPhongMaterial({ color: 0x9FAA74, transparent: true, opacity: 0.3, side: THREE.DoubleSide });
+  const tankGeo  = new THREE.CylinderGeometry(1.9, 1.9, 4, 32, 1, true);
+  const tankMat  = new THREE.MeshPhongMaterial({ color: 0x9FAA74, transparent: true, opacity: 0.35, side: THREE.DoubleSide });
   const tankMesh = new THREE.Mesh(tankGeo, tankMat);
-  tankMesh.position.set(4, 2, 0);
+  tankMesh.position.set(7.5, 2, 0);
   scene.add(tankMesh);
 
-  // Tank lid + bottom
-  [0, 4].forEach(y => {
-    const tl = new THREE.Mesh(new THREE.CylinderGeometry(1.8, 1.8, 0.08, 32),
-      new THREE.MeshPhongMaterial({ color: 0x4A6644 }));
-    tl.position.set(4, y, 0);
-    scene.add(tl);
-  });
-
-  // Gas fill inside tank (rises with methane reading)
   const gasH   = Math.min(3.8, (methane / 450) * 3.8);
-  const gasGeo = new THREE.CylinderGeometry(1.7, 1.7, Math.max(0.1, gasH), 32);
-  const gasMat = new THREE.MeshPhongMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.6 });
+  const gasGeo = new THREE.CylinderGeometry(1.8, 1.8, Math.max(0.15, gasH), 32);
+  const gasMat = new THREE.MeshPhongMaterial({ color: 0xf0b95a, transparent: true, opacity: 0.65 });
   const gasFill = new THREE.Mesh(gasGeo, gasMat);
-  gasFill.position.set(4, gasH / 2, 0);
+  gasFill.position.set(7.5, gasH / 2, 0);
   scene.add(gasFill);
 
-  // ── Fertilizer tray ──
-  const trayGeo = new THREE.BoxGeometry(2, 0.12, 1.2);
-  const tray    = new THREE.Mesh(trayGeo, new THREE.MeshPhongMaterial({ color: 0x555555 }));
-  tray.position.set(-5.5, -0.9, 0);
-  scene.add(tray);
-
-  const dirtGeo = new THREE.BoxGeometry(1.6, 0.2, 0.9);
-  const dirt    = new THREE.Mesh(dirtGeo, new THREE.MeshPhongMaterial({ color: 0x5a3a15 }));
-  dirt.position.set(-5.5, -0.73, 0);
-  scene.add(dirt);
-
-  // ── Floor grid ──
-  const grid = new THREE.GridHelper(22, 20, 0x1f3d26, 0x1f3d26);
+  const grid = new THREE.GridHelper(26, 20, 0x1f3d26, 0x1f3d26);
   grid.position.y = -1;
   scene.add(grid);
 
-  // ── Animate ──
   let angle = 0;
-  let gasAcc = gasH;
-
   function animate() {
     requestAnimationFrame(animate);
-    angle += 0.012;
-    bladeGroup.rotation.y = angle;
-
-    // Slowly fill gas tank
-    gasAcc = Math.min(3.8, gasAcc + 0.0003);
-    gasFill.scale.y = gasAcc / Math.max(0.1, gasH);
-    gasFill.position.y = (gasAcc * gasFill.scale.y) / 2;
-
-    // Slurry gentle bob
-    slurry.position.y = slurryH / 2 + Math.sin(angle * 0.5) * 0.03;
-
+    angle += 0.01;
+    camera.position.x = Math.sin(angle * 0.15) * 2;
+    camera.lookAt(0, 2, 0);
+    slurry.position.y = 0.9 + Math.sin(angle * 0.5) * 0.02;
     renderer.render(scene, camera);
   }
-
   animate();
 
-  // Info
   const twinInfo = document.getElementById("twin-info");
-  setInterval(() => {
-    twinInfo.textContent = `stirrer: ${(angle % (2*Math.PI) * 57.3).toFixed(0)}° | gas fill: ${(gasAcc/3.8*100).toFixed(0)}% | temp: ${temp}°C`;
-  }, 500);
+  twinInfo.textContent = `gas fill: ${(gasH/3.8*100).toFixed(0)}% | temp: ${temp}\u00b0C`;
 }
 
-// ══════════════════════════════════════════
-// MAIN INIT
-// ══════════════════════════════════════════
 (async () => {
-  const { readings, latest, retrieved_at } = await loadData();
+  const { readings, latest, retrieved_at, project_start, project_now } = await loadData();
 
-  // Topbar
-  document.getElementById("topbar-sub").textContent = `Latest reading: ${latest.label} · ${retrieved_at}`;
+  document.getElementById("topbar-sub").textContent = `Latest reading: ${latest.label} \u00b7 as of ${retrieved_at}`;
   document.getElementById("pill-time").textContent   = retrieved_at;
-  document.getElementById("strip-time").textContent  = "Retrieved: " + retrieved_at;
+  document.getElementById("strip-time").textContent  = "Snapshot: " + retrieved_at;
 
-  // Stat cards
   document.getElementById("s-temp").textContent    = latest.temp.toFixed(2);
   document.getElementById("s-methane").textContent = latest.methane;
+  document.getElementById("s-ppm").textContent      = latest.ppm.toLocaleString();
   const ss = document.getElementById("s-status");
   ss.textContent  = latest.status;
   ss.style.color  = statusColor(latest.status);
+  document.getElementById("s-phase").textContent = latest.phase;
 
   const labels   = readings.map(r => r.label);
   const temps    = readings.map(r => r.temp);
   const methanes = readings.map(r => r.methane);
+  const ppms     = readings.map(r => r.ppm);
 
   const chartDefaults = {
     responsive: true,
@@ -710,7 +263,6 @@ function initTwin(methane, temp) {
     }
   };
 
-  // Temp chart
   new Chart(document.getElementById("tempChart"), {
     type: "line",
     data: { labels, datasets: [{
@@ -722,25 +274,26 @@ function initTwin(methane, temp) {
       pointRadius: 5,
       tension: 0.4, fill: true
     }]},
-    options: { ...chartDefaults, scales: { ...chartDefaults.scales, y: { ...chartDefaults.scales.y, suggestedMin: 29, suggestedMax: 34 } } }
+    options: { ...chartDefaults, scales: { ...chartDefaults.scales, y: { ...chartDefaults.scales.y, suggestedMin: 29, suggestedMax: 33 } } }
   });
 
-  // Methane chart
   new Chart(document.getElementById("methaneChart"), {
     type: "line",
-    data: { labels, datasets: [{
-      data: methanes,
-      borderColor: "#C66F80",
-      backgroundColor: "rgba(198,111,128,0.08)",
-      borderWidth: 2.5,
-      pointBackgroundColor: "#C66F80",
-      pointRadius: 5,
-      tension: 0.4, fill: true
-    }]},
+    data: { labels, datasets: [
+      {
+        label: "raw",
+        data: methanes,
+        borderColor: "#C66F80",
+        backgroundColor: "rgba(198,111,128,0.08)",
+        borderWidth: 2.5,
+        pointBackgroundColor: "#C66F80",
+        pointRadius: 5,
+        tension: 0.4, fill: true, yAxisID: "y"
+      }
+    ]},
     options: { ...chartDefaults, scales: { ...chartDefaults.scales, y: { ...chartDefaults.scales.y, suggestedMin: 0, suggestedMax: 450 } } }
   });
 
-  // Progress bars
   const barWrap = document.getElementById("bar-wrap");
   readings.forEach(r => {
     const pct = Math.round((r.methane / 450) * 100);
@@ -752,19 +305,17 @@ function initTwin(methane, temp) {
       </div>`;
   });
 
-  // Table
   const tbody = document.getElementById("table-body");
   readings.forEach(r => {
     tbody.innerHTML += `
       <tr>
         <td>${r.label}</td>
-        <td>${r.temp.toFixed(2)}°C</td>
+        <td>${r.temp.toFixed(2)}&deg;C</td>
         <td>${r.methane}</td>
         <td><span class="badge ${badgeClass(r.status)}">${r.status}</span></td>
       </tr>`;
   });
 
-  // Digital twin
   initTwin(latest.methane, latest.temp);
 })();
 </script>
