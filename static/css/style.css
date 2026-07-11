@@ -82,14 +82,6 @@ body {
 .nav-item.active { background: var(--pink-dark); color: #fff; font-weight: 600; }
 .nav-item .icon { font-size: 16px; width: 20px; text-align: center; }
 
-.sidebar-footer {
-  margin-top: auto;
-  padding: 16px 24px;
-  border-top: 1px solid rgba(255,255,255,0.1);
-  font-size: 11px;
-  color: rgba(255,255,255,0.35);
-  line-height: 1.6;
-}
 
 /* main */
 .main { margin-left: 220px; flex: 1; padding: 32px; min-height: 100vh; }
