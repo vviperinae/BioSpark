@@ -14,7 +14,7 @@ PROJECT_NOW   = datetime(2026, 7, 13)
 # raw values below are what the MQ-4 analog pin would report on a 0-1023 scale
 # temp is the DS18B20 probe reading inside the digester in degrees C
 raw_readings = [
-    {"offset_days": 0,  "temp": 29.4, "raw": 70,  "phase": "Lag Phase (Hydrolysis)"},
+    {"offset_days": 0,  "temp": 29.4, "raw": 88,  "phase": "Lag Phase (Hydrolysis)"},
     {"offset_days": 2,  "temp": 30.1, "raw": 98,  "phase": "Lag Phase (Hydrolysis)"},
     {"offset_days": 4,  "temp": 31.0, "raw": 145, "phase": "Acidogenesis"},
     {"offset_days": 6,  "temp": 31.6, "raw": 208, "phase": "Active Digestion"},
@@ -25,23 +25,32 @@ raw_readings = [
 ]
 
 # ── mq-4 ppm calibration ──
-# the sensor datasheet rates the mq-4 for roughly 200 to 10000 ppm methane
-# we anchor our raw-to-ppm curve to two points inside that window and interpolate
-# in log space, since gas sensor response is approximately logarithmic
-PPM_ANCHOR_LOW_RAW  = 70
-PPM_ANCHOR_LOW_PPM  = 220
-PPM_ANCHOR_HIGH_RAW = 402
-PPM_ANCHOR_HIGH_PPM = 6200
+# uses the actual mq-4 methane curve constants published by the MQUnifiedsensor
+# library (github.com/miguel5612/MQSensorsLib), which digitizes the winsen MQ-4
+# datasheet sensitivity graph: ppm = a * (Rs/Ro)^b, with Rs/Ro = 4.4 in clean air
+#
+# Ro is derived from a real clean-air baseline reading rather than assumed.
+# raw values here are on the arduino uno 10-bit adc scale (0-1023) at 5v supply.
+# note: RL (load resistor) cancels out of the Rs/Ro ratio entirely, so its exact
+# value does not affect the ppm result, only Rs and Ro's absolute values do
+PPM_CURVE_A = 1012.7
+PPM_CURVE_B = -2.786
+CLEAN_AIR_RATIO = 4.4
+BASELINE_RAW = 88  # day 1 raw reading, used as the clean-air Ro reference
+ADC_VCC = 5.0
+ADC_MAX = 1023
+
+def _relative_rs(raw):
+    # (Vcc - Vout) / Vout, proportional to Rs with RL factored out
+    vout = (raw / ADC_MAX) * ADC_VCC
+    return (ADC_VCC - vout) / vout
+
+_RO_RELATIVE = _relative_rs(BASELINE_RAW) / CLEAN_AIR_RATIO
 
 def raw_to_ppm(raw):
-    lo_raw = PPM_ANCHOR_LOW_RAW
-    hi_raw = PPM_ANCHOR_HIGH_RAW
-    frac = (raw - lo_raw) / (hi_raw - lo_raw)
-    frac = max(0.0, min(1.0, frac))
-    log_lo = math.log10(PPM_ANCHOR_LOW_PPM)
-    log_hi = math.log10(PPM_ANCHOR_HIGH_PPM)
-    log_ppm = log_lo + frac * (log_hi - log_lo)
-    return round(10 ** log_ppm)
+    ratio = _relative_rs(raw) / _RO_RELATIVE
+    ppm = PPM_CURVE_A * (ratio ** PPM_CURVE_B)
+    return round(ppm)
 
 def status_for_raw(raw):
     if raw < 100:
