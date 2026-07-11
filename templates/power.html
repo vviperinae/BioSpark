@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>BioSpark &middot; Power Status</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}"/>
+  <style>
+    .battery-shell {
+      width: 100%;
+      height: 46px;
+      border: 2px solid var(--green-dark);
+      border-radius: 8px;
+      position: relative;
+      overflow: hidden;
+      background: var(--surface);
+    }
+    .battery-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--green-mid), var(--green-dark));
+      transition: width 0.6s ease;
+    }
+    .battery-pct-label {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--mono);
+      font-weight: 700;
+      font-size: 15px;
+      color: var(--text);
+    }
+  </style>
+</head>
+<body>
+
+{% set active_page = 'power' %}
+{% include '_sidebar.html' %}
+
+<main class="main">
+
+  <div class="topbar">
+    <div class="topbar-left">
+      <h2>Power Status</h2>
+      <p id="topbar-sub">Loading powerbank telemetry...</p>
+    </div>
+    <div class="topbar-right">
+      <div class="pill"><div class="dot"></div> Powerbank</div>
+      <div class="pill" id="pill-time">&mdash;</div>
+    </div>
+  </div>
+
+  <div class="grid-4">
+    <div class="card card-accent-green">
+      <div class="card-label">&#128267; Battery</div>
+      <div class="card-value" id="p-pct">&mdash;</div>
+      <div class="card-unit">% remaining</div>
+    </div>
+    <div class="card card-accent-pink">
+      <div class="card-label">&#9889; Voltage</div>
+      <div class="card-value" id="p-volt">&mdash;</div>
+      <div class="card-unit">V &middot; USB rail</div>
+    </div>
+    <div class="card card-accent-blush">
+      <div class="card-label">&#128268; Current Draw</div>
+      <div class="card-value" id="p-current" style="font-size:26px">&mdash;</div>
+      <div class="card-unit">mA &middot; ESP32 + sensors + relay</div>
+    </div>
+    <div class="card card-accent-sage">
+      <div class="card-label">&#8987; Est. Runtime Left</div>
+      <div class="card-value" id="p-runtime" style="font-size:24px">&mdash;</div>
+      <div class="card-unit">at current draw</div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:20px">
+    <div class="card-title">&#128267; Charge Level</div>
+    <div class="battery-shell">
+      <div class="battery-fill" id="battery-fill" style="width:0%"></div>
+      <div class="battery-pct-label" id="battery-label">&mdash;</div>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-top:8px">20,000 mAh powerbank &middot; recharged or swapped by the team whenever it drops below ~18%</div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">&#128200; Battery Percent Over Time <span>full monitoring window</span></div>
+      <canvas id="battChart" height="170"></canvas>
+    </div>
+    <div class="card">
+      <div class="card-title">&#128268; Current Draw Over Time <span>mA</span></div>
+      <canvas id="currentChart" height="170"></canvas>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">&#128203; Power Log <span>last 15 samples</span></div>
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Time</th>
+          <th>Voltage</th>
+          <th>Current (mA)</th>
+          <th>Battery</th>
+        </tr>
+      </thead>
+      <tbody id="power-table-body"></tbody>
+    </table>
+  </div>
+
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+async function loadPower() {
+  const res = await fetch("/api/power");
+  return res.json();
+}
+
+(async () => {
+  const { log, latest, capacity_mah } = await loadPower();
+
+  document.getElementById("topbar-sub").textContent = `${log.length} samples &middot; latest ${latest.label} ${latest.hour}`;
+  document.getElementById("pill-time").textContent = `${latest.label} ${latest.hour}`;
+
+  document.getElementById("p-pct").textContent = latest.battery_pct;
+  document.getElementById("p-volt").textContent = latest.voltage.toFixed(2);
+  document.getElementById("p-current").textContent = latest.current_ma.toFixed(0);
+
+  const remainingMah = capacity_mah * (latest.battery_pct / 100);
+  const runtimeHours = remainingMah / latest.current_ma;
+  document.getElementById("p-runtime").textContent = runtimeHours.toFixed(0) + " h";
+
+  document.getElementById("battery-fill").style.width = latest.battery_pct + "%";
+  document.getElementById("battery-label").textContent = latest.battery_pct + "%";
+
+  const labels = log.map(r => `${r.label} ${r.hour}`);
+  const pcts = log.map(r => r.battery_pct);
+  const currents = log.map(r => r.current_ma);
+
+  const chartDefaults = {
+    responsive: true,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { ticks: { color: "#7A7A6A", font: { family: "DM Mono", size: 8 }, maxRotation: 90, minRotation: 90 }, grid: { color: "#EDE5D4" } },
+      y: { ticks: { color: "#7A7A6A", font: { family: "DM Mono", size: 10 } }, grid: { color: "#EDE5D4" } }
+    }
+  };
+
+  new Chart(document.getElementById("battChart"), {
+    type: "line",
+    data: { labels, datasets: [{
+      data: pcts, borderColor: "#4A6644", backgroundColor: "rgba(74,102,68,0.08)",
+      borderWidth: 2, pointRadius: 0, tension: 0.3, fill: true
+    }]},
+    options: { ...chartDefaults, scales: { ...chartDefaults.scales, y: { ...chartDefaults.scales.y, suggestedMin: 0, suggestedMax: 100 } } }
+  });
+
+  new Chart(document.getElementById("currentChart"), {
+    type: "line",
+    data: { labels, datasets: [{
+      data: currents, borderColor: "#C66F80", backgroundColor: "rgba(198,111,128,0.08)",
+      borderWidth: 2, pointRadius: 0, tension: 0.3, fill: true
+    }]},
+    options: { ...chartDefaults, scales: { ...chartDefaults.scales, y: { ...chartDefaults.scales.y, suggestedMin: 140, suggestedMax: 240 } } }
+  });
+
+  const tbody = document.getElementById("power-table-body");
+  log.slice(-15).reverse().forEach(r => {
+    tbody.innerHTML += `
+      <tr>
+        <td>${r.label}</td>
+        <td>${r.hour}</td>
+        <td>${r.voltage.toFixed(2)} V</td>
+        <td>${r.current_ma.toFixed(1)}</td>
+        <td>${r.battery_pct}%</td>
+      </tr>`;
+  });
+})();
+</script>
+</body>
+</html>
