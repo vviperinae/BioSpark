@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>BioSpark &middot; SD Card Log</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}"/>
+  <style>
+    .log-controls { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+    .log-controls select, .log-controls input {
+      font-family: var(--mono);
+      font-size: 12px;
+      padding: 8px 12px;
+      border-radius: 9px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+    }
+    .log-controls input { flex: 1; min-width: 160px; }
+    .log-meta { font-size: 12px; color: var(--muted); margin-bottom: 12px; }
+    #log-table-wrap { max-height: 560px; overflow-y: auto; border-radius: 10px; border: 1px solid var(--border); }
+    #log-table-wrap table thead th { position: sticky; top: 0; }
+  </style>
+</head>
+<body>
+
+{% set active_page = 'sdlog' %}
+{% include '_sidebar.html' %}
+
+<main class="main">
+
+  <div class="topbar">
+    <div class="topbar-left">
+      <h2>SD Card Log</h2>
+      <p id="topbar-sub">Loading raw log...</p>
+    </div>
+    <div class="topbar-right">
+      <div class="pill"><div class="dot"></div> data.csv</div>
+      <button class="btn btn-primary" onclick="downloadCsv()">&#8595; Download CSV</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">&#128190; Raw Sensor Log <span>5 samples / reading day &middot; 29 Jun &rarr; 13 Jul</span></div>
+
+    <div class="log-controls">
+      <select id="filter-date"><option value="">All dates</option></select>
+      <select id="filter-status">
+        <option value="">All levels</option>
+        <option value="low">Low (&lt; 300 ppm)</option>
+        <option value="mid">Mid (300&ndash;3000 ppm)</option>
+        <option value="high">High (&gt; 3000 ppm)</option>
+      </select>
+      <input type="text" id="filter-search" placeholder="search date, hour, or value..."/>
+    </div>
+
+    <div class="log-meta" id="log-meta">&mdash;</div>
+
+    <div id="log-table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Time</th>
+            <th>Temp (&deg;C)</th>
+            <th>Methane (raw)</th>
+            <th>Methane (ppm)</th>
+          </tr>
+        </thead>
+        <tbody id="log-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+</main>
+
+<script>
+let fullLog = [];
+
+async function loadLog() {
+  const res = await fetch("/api/sdlog");
+  return res.json();
+}
+
+function levelBucket(ppm) {
+  if (ppm < 300) return "low";
+  if (ppm <= 3000) return "mid";
+  return "high";
+}
+
+function renderRows(rows) {
+  const body = document.getElementById("log-body");
+  body.innerHTML = "";
+  rows.forEach(r => {
+    body.innerHTML += `
+      <tr>
+        <td>${r.label}</td>
+        <td>${r.hour}</td>
+        <td>${r.temp.toFixed(2)}</td>
+        <td>${r.methane}</td>
+        <td>${r.ppm.toLocaleString()}</td>
+      </tr>`;
+  });
+  document.getElementById("log-meta").textContent = `Showing ${rows.length} of ${fullLog.length} entries`;
+}
+
+function applyFilters() {
+  const dateVal = document.getElementById("filter-date").value;
+  const statusVal = document.getElementById("filter-status").value;
+  const searchVal = document.getElementById("filter-search").value.toLowerCase().trim();
+
+  const filtered = fullLog.filter(r => {
+    if (dateVal && r.date !== dateVal) return false;
+    if (statusVal && levelBucket(r.ppm) !== statusVal) return false;
+    if (searchVal) {
+      const hay = `${r.label} ${r.hour} ${r.temp} ${r.methane} ${r.ppm}`.toLowerCase();
+      if (!hay.includes(searchVal)) return false;
+    }
+    return true;
+  });
+  renderRows(filtered);
+}
+
+function downloadCsv() {
+  const header = "date,label,hour,temp_c,methane_raw,methane_ppm\n";
+  const rows = fullLog.map(r => `${r.date},${r.label},${r.hour},${r.temp},${r.methane},${r.ppm}`).join("\n");
+  const blob = new Blob([header + rows], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "biospark_sdlog.csv";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+(async () => {
+  const { log, total } = await loadLog();
+  fullLog = log;
+
+  document.getElementById("topbar-sub").textContent = `${total} entries logged from the field unit`;
+
+  const dateSelect = document.getElementById("filter-date");
+  const seen = new Set();
+  log.forEach(r => {
+    if (!seen.has(r.date)) {
+      seen.add(r.date);
+      const opt = document.createElement("option");
+      opt.value = r.date;
+      opt.textContent = r.label;
+      dateSelect.appendChild(opt);
+    }
+  });
+
+  document.getElementById("filter-date").addEventListener("change", applyFilters);
+  document.getElementById("filter-status").addEventListener("change", applyFilters);
+  document.getElementById("filter-search").addEventListener("input", applyFilters);
+
+  renderRows(fullLog);
+})();
+</script>
+</body>
+</html>
