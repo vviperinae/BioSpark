@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>BioSpark &middot; Analytics</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}"/>
+  <style>
+    .calc-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 900px) { .calc-layout { grid-template-columns: 1fr; } }
+
+    .slider-wrap { margin: 18px 0 22px; }
+    .slider-label { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 8px; }
+    .slider-label .val { font-family: var(--mono); font-weight: 700; color: var(--pink-dark); }
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--pink-dark);
+      height: 4px;
+    }
+
+    .result-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 4px; }
+    .result-tile {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+    }
+    .result-tile .rt-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); margin-bottom: 4px; }
+    .result-tile .rt-val { font-family: var(--mono); font-size: 18px; font-weight: 700; color: var(--green-dark); }
+    .result-tile .rt-unit { font-size: 11px; color: var(--muted); }
+
+    .assumption-list { font-size: 12px; color: var(--muted); line-height: 1.9; margin-top: 14px; }
+    .assumption-list b { color: var(--text); }
+
+    .note-box {
+      background: var(--pink-light);
+      border: 1px solid var(--pink-mid);
+      border-radius: 10px;
+      padding: 12px 14px;
+      font-size: 12px;
+      color: var(--pink-dark);
+      margin-top: 14px;
+      line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+
+{% set active_page = 'analytics' %}
+{% include '_sidebar.html' %}
+
+<main class="main">
+
+  <div class="topbar">
+    <div class="topbar-left">
+      <h2>Analytics</h2>
+      <p id="topbar-sub">Loading latest readings...</p>
+    </div>
+    <div class="topbar-right">
+      <div class="pill" id="pill-time">&mdash;</div>
+    </div>
+  </div>
+
+  <div class="grid-3">
+    <div class="card card-accent-green">
+      <div class="card-label">&#128200; Temp Trend</div>
+      <div class="card-value" id="a-temp-trend" style="font-size:22px">&mdash;</div>
+      <div class="card-unit">change since first reading</div>
+    </div>
+    <div class="card card-accent-pink">
+      <div class="card-label">&#128293; Methane Trend</div>
+      <div class="card-value" id="a-methane-trend" style="font-size:22px">&mdash;</div>
+      <div class="card-unit">ppm change since first reading</div>
+    </div>
+    <div class="card card-accent-sage">
+      <div class="card-label">&#9202; Days Monitored</div>
+      <div class="card-value" id="a-days" style="font-size:22px">&mdash;</div>
+      <div class="card-unit" id="a-range">&mdash;</div>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">&#127777; Temperature <span>DS18B20, all readings</span></div>
+      <canvas id="tempChart" height="170"></canvas>
+    </div>
+    <div class="card">
+      <div class="card-title">&#128293; Methane, raw + ppm <span>MQ-4</span></div>
+      <canvas id="methaneChart" height="170"></canvas>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:20px">
+    <div class="card-title">&#128301; Digestion Phase Timeline <span>29 Jun &rarr; 13 Jul</span></div>
+    <div id="phase-timeline"></div>
+  </div>
+
+  <div class="calc-layout">
+    <div class="card">
+      <div class="card-title">&#127808; Food Waste &rarr; Expected Biogas Calculator</div>
+      <div class="slider-wrap">
+        <div class="slider-label">Food waste feed rate <span class="val" id="kg-val">2.0 kg/day</span></div>
+        <input type="range" id="kg-slider" min="0.5" max="10" step="0.5" value="2"/>
+      </div>
+
+      <div class="result-grid">
+        <div class="result-tile">
+          <div class="rt-label">Total solids in</div>
+          <div class="rt-val" id="r-ts">&mdash;</div>
+          <div class="rt-unit">kg/day</div>
+        </div>
+        <div class="result-tile">
+          <div class="rt-label">Volatile solids in</div>
+          <div class="rt-val" id="r-vs">&mdash;</div>
+          <div class="rt-unit">kg/day</div>
+        </div>
+        <div class="result-tile">
+          <div class="rt-label">Biogas produced</div>
+          <div class="rt-val" id="r-biogas">&mdash;</div>
+          <div class="rt-unit">m&sup3;/day</div>
+        </div>
+        <div class="result-tile">
+          <div class="rt-label">Methane produced</div>
+          <div class="rt-val" id="r-ch4">&mdash;</div>
+          <div class="rt-unit">m&sup3;/day</div>
+        </div>
+        <div class="result-tile">
+          <div class="rt-label">Energy potential</div>
+          <div class="rt-val" id="r-energy">&mdash;</div>
+          <div class="rt-unit">kWh/day</div>
+        </div>
+        <div class="result-tile">
+          <div class="rt-label">Required working volume</div>
+          <div class="rt-val" id="r-volume">&mdash;</div>
+          <div class="rt-unit">m&sup3; &middot; at 25 day HRT</div>
+        </div>
+      </div>
+
+      <div class="assumption-list">
+        Assumptions: <b>20%</b> total solids in wet food waste &middot; <b>85%</b> volatile solids of TS &middot;
+        <b>0.5 m&sup3;</b> biogas per kg VS destroyed &middot; <b>60%</b> methane fraction &middot;
+        <b>35.8 MJ/m&sup3;</b> calorific value of methane &middot; <b>25 day</b> hydraulic retention time
+      </div>
+
+      <div class="note-box">
+        Undiluted headspace concentration works out to roughly <b id="r-headspace">&mdash;</b> ppm CH&#8324; (simply the 60% methane fraction of biogas). That is far above the MQ-4's rated 200&ndash;10,000 ppm window, which is why the deployed sensor samples a vented/diluted point rather than raw headspace gas, and why logged readings stay in the hundreds-to-low-thousands range.
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">&#128202; Yield vs Feed Rate <span>0.5&ndash;10 kg/day</span></div>
+      <canvas id="yieldChart" height="230"></canvas>
+      <div style="font-size:12px;color:var(--muted);margin-top:14px;line-height:1.7">
+        The chart shows how daily biogas and methane output scale linearly with food waste input under the assumptions above.
+        Real yield also depends on temperature, retention time, and how finely the waste is shredded before feeding, so treat this as a planning estimate rather than a guaranteed output.
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+const TS_FRACTION = 0.20;
+const VS_FRACTION_OF_TS = 0.85;
+const BIOGAS_YIELD_PER_KG_VS = 0.50;
+const CH4_FRACTION = 0.60;
+const CH4_CALORIFIC_MJ_PER_M3 = 35.8;
+const HRT_DAYS = 25;
+const SLURRY_LITERS_PER_KG = 2.0;
+
+function calculateBiogas(kgPerDay) {
+  const tsKg = kgPerDay * TS_FRACTION;
+  const vsKg = tsKg * VS_FRACTION_OF_TS;
+  const biogasM3 = vsKg * BIOGAS_YIELD_PER_KG_VS;
+  const ch4M3 = biogasM3 * CH4_FRACTION;
+  const energyMj = ch4M3 * CH4_CALORIFIC_MJ_PER_M3;
+  const energyKwh = energyMj / 3.6;
+  const slurryLiters = kgPerDay * SLURRY_LITERS_PER_KG;
+  const workingVolumeM3 = slurryLiters * HRT_DAYS / 1000;
+  return { tsKg, vsKg, biogasM3, ch4M3, energyKwh, workingVolumeM3 };
+}
+
+function badgeClass(s) {
+  if (s === "Not Ready") return "badge-notready";
+  if (s === "Building")  return "badge-building";
+  return "badge-good";
+}
+
+async function loadData() {
+  const res = await fetch("/api/data");
+  return res.json();
+}
+
+(async () => {
+  const { readings, latest, retrieved_at, project_start, project_now } = await loadData();
+
+  document.getElementById("topbar-sub").textContent = `${readings.length} readings logged \u00b7 as of ${retrieved_at}`;
+  document.getElementById("pill-time").textContent = retrieved_at;
+
+  const first = readings[0];
+  document.getElementById("a-temp-trend").textContent = (latest.temp - first.temp >= 0 ? "+" : "") + (latest.temp - first.temp).toFixed(1) + "\u00b0C";
+  document.getElementById("a-methane-trend").textContent = "+" + (latest.ppm - first.ppm).toLocaleString();
+  document.getElementById("a-days").textContent = "14 days";
+  document.getElementById("a-range").textContent = `${project_start} \u2192 ${project_now}`;
+
+  const labels = readings.map(r => r.label);
+  const temps  = readings.map(r => r.temp);
+  const raws   = readings.map(r => r.methane);
+  const ppms   = readings.map(r => r.ppm);
+
+  const chartDefaults = {
+    responsive: true,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { ticks: { color: "#7A7A6A", font: { family: "DM Mono", size: 10 } }, grid: { color: "#EDE5D4" } },
+      y: { ticks: { color: "#7A7A6A", font: { family: "DM Mono", size: 10 } }, grid: { color: "#EDE5D4" } }
+    }
+  };
+
+  new Chart(document.getElementById("tempChart"), {
+    type: "line",
+    data: { labels, datasets: [{
+      data: temps, borderColor: "#4A6644", backgroundColor: "rgba(74,102,68,0.08)",
+      borderWidth: 2.5, pointBackgroundColor: "#4A6644", pointRadius: 5, tension: 0.4, fill: true
+    }]},
+    options: { ...chartDefaults, scales: { ...chartDefaults.scales, y: { ...chartDefaults.scales.y, suggestedMin: 29, suggestedMax: 33 } } }
+  });
+
+  new Chart(document.getElementById("methaneChart"), {
+    type: "line",
+    data: { labels, datasets: [
+      { label: "raw", data: raws, borderColor: "#C66F80", backgroundColor: "rgba(198,111,128,0.08)", borderWidth: 2.5, pointRadius: 4, tension: 0.4, fill: true, yAxisID: "y" },
+      { label: "ppm", data: ppms, borderColor: "#9FAA74", backgroundColor: "rgba(159,170,116,0.08)", borderWidth: 2.5, pointRadius: 4, tension: 0.4, fill: false, yAxisID: "y1" }
+    ]},
+    options: {
+      ...chartDefaults,
+      plugins: { legend: { display: true, labels: { font: { family: "DM Mono", size: 10 }, color: "#7A7A6A" } } },
+      scales: {
+        x: chartDefaults.scales.x,
+        y:  { position: "left",  ticks: { color: "#C66F80", font: { family: "DM Mono", size: 10 } }, grid: { color: "#EDE5D4" }, suggestedMin: 0, suggestedMax: 450 },
+        y1: { position: "right", ticks: { color: "#4A6644", font: { family: "DM Mono", size: 10 } }, grid: { display: false }, suggestedMin: 0, suggestedMax: 7000 }
+      }
+    }
+  });
+
+  const timeline = document.getElementById("phase-timeline");
+  readings.forEach(r => {
+    const pct = Math.round((r.ppm / 7000) * 100);
+    timeline.innerHTML += `
+      <div class="bar-row">
+        <div class="bar-date">${r.label}</div>
+        <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>
+        <div class="bar-val" style="width:auto;margin-left:6px"><span class="badge ${badgeClass(r.status)}">${r.phase}</span></div>
+      </div>`;
+  });
+
+  const yieldLabels = [];
+  const yieldBiogas = [];
+  const yieldCh4 = [];
+  for (let kg = 0.5; kg <= 10; kg += 0.5) {
+    const c = calculateBiogas(kg);
+    yieldLabels.push(kg.toFixed(1));
+    yieldBiogas.push(c.biogasM3.toFixed(3));
+    yieldCh4.push(c.ch4M3.toFixed(3));
+  }
+  new Chart(document.getElementById("yieldChart"), {
+    type: "bar",
+    data: {
+      labels: yieldLabels,
+      datasets: [
+        { label: "biogas m\u00b3/day", data: yieldBiogas, backgroundColor: "rgba(159,170,116,0.7)" },
+        { label: "methane m\u00b3/day", data: yieldCh4, backgroundColor: "rgba(198,111,128,0.7)" }
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: true, labels: { font: { family: "DM Mono", size: 10 }, color: "#7A7A6A" } } },
+      scales: {
+        x: { title: { display: true, text: "kg food waste / day", color: "#7A7A6A", font: { family: "DM Mono", size: 10 } }, ticks: { color: "#7A7A6A", font: { family: "DM Mono", size: 9 } }, grid: { display: false } },
+        y: { ticks: { color: "#7A7A6A", font: { family: "DM Mono", size: 10 } }, grid: { color: "#EDE5D4" } }
+      }
+    }
+  });
+
+  function updateCalculator(kg) {
+    const c = calculateBiogas(kg);
+    document.getElementById("kg-val").textContent = kg.toFixed(1) + " kg/day";
+    document.getElementById("r-ts").textContent = c.tsKg.toFixed(3);
+    document.getElementById("r-vs").textContent = c.vsKg.toFixed(3);
+    document.getElementById("r-biogas").textContent = c.biogasM3.toFixed(3);
+    document.getElementById("r-ch4").textContent = c.ch4M3.toFixed(3);
+    document.getElementById("r-energy").textContent = c.energyKwh.toFixed(2);
+    document.getElementById("r-volume").textContent = c.workingVolumeM3.toFixed(2);
+    document.getElementById("r-headspace").textContent = Math.round(CH4_FRACTION * 1000000).toLocaleString();
+  }
+
+  const slider = document.getElementById("kg-slider");
+  slider.addEventListener("input", () => updateCalculator(parseFloat(slider.value)));
+  updateCalculator(parseFloat(slider.value));
+})();
+</script>
+</body>
+</html>
