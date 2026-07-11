@@ -1,58 +1,193 @@
-from flask import Flask, render_template, jsonify
-from datetime import datetime
+from flask import Flask, render_template, jsonify, request
+from datetime import datetime, timedelta
+import math
+import random
 
 app = Flask(__name__)
 
-sensor_data = [
-    {"date": "2026-07-03", "label": "03 Jul", "temp": 32.63, "methane": 88,  "status": "Not Ready", "phase": "Lag Phase"},
-    {"date": "2026-07-06", "label": "06 Jul", "temp": 31.0,  "methane": 127, "status": "Building",  "phase": "Lag Phase"},
-    {"date": "2026-07-09", "label": "09 Jul", "temp": 31.5,  "methane": 198, "status": "Building",  "phase": "Active Digestion"},
-    {"date": "2026-07-12", "label": "12 Jul", "temp": 30.8,  "methane": 310, "status": "Good",      "phase": "Active Digestion"},
-    {"date": "2026-07-15", "label": "15 Jul", "temp": 30.5,  "methane": 398, "status": "Good",      "phase": "Active Digestion"},
+# ── project timeline ──
+# monitoring window: 29 jun 2026 to 13 jul 2026, one reading every 2 days
+# 13 jul is treated as "now" for this project's demo, even if the real clock has moved on
+PROJECT_START = datetime(2026, 6, 29)
+PROJECT_NOW   = datetime(2026, 7, 13)
+
+# raw values below are what the MQ-4 analog pin would report on a 0-1023 scale
+# temp is the DS18B20 probe reading inside the digester in degrees C
+raw_readings = [
+    {"offset_days": 0,  "temp": 29.4, "raw": 70,  "phase": "Lag Phase (Hydrolysis)"},
+    {"offset_days": 2,  "temp": 30.1, "raw": 98,  "phase": "Lag Phase (Hydrolysis)"},
+    {"offset_days": 4,  "temp": 31.0, "raw": 145, "phase": "Acidogenesis"},
+    {"offset_days": 6,  "temp": 31.6, "raw": 208, "phase": "Active Digestion"},
+    {"offset_days": 8,  "temp": 32.0, "raw": 265, "phase": "Active Digestion"},
+    {"offset_days": 10, "temp": 31.7, "raw": 322, "phase": "Methanogenesis (Ramping)"},
+    {"offset_days": 12, "temp": 31.1, "raw": 368, "phase": "Methanogenesis (Stable)"},
+    {"offset_days": 14, "temp": 30.6, "raw": 402, "phase": "Methanogenesis (Stable)"},
 ]
 
-sd_log = []
-import random
-random.seed(42)
-base_time = 0
-for d in sensor_data:
-    for hour in [8, 11, 14, 17, 20]:
-        sd_log.append({
-            "time_s": base_time + hour * 3600,
-            "date": d["label"],
-            "hour": f"{hour:02d}:00",
-            "temp": round(d["temp"] + random.uniform(-0.4, 0.4), 2),
-            "methane": d["methane"] + random.randint(-8, 8),
+# ── mq-4 ppm calibration ──
+# the sensor datasheet rates the mq-4 for roughly 200 to 10000 ppm methane
+# we anchor our raw-to-ppm curve to two points inside that window and interpolate
+# in log space, since gas sensor response is approximately logarithmic
+PPM_ANCHOR_LOW_RAW  = 70
+PPM_ANCHOR_LOW_PPM  = 220
+PPM_ANCHOR_HIGH_RAW = 402
+PPM_ANCHOR_HIGH_PPM = 6200
+
+def raw_to_ppm(raw):
+    lo_raw = PPM_ANCHOR_LOW_RAW
+    hi_raw = PPM_ANCHOR_HIGH_RAW
+    frac = (raw - lo_raw) / (hi_raw - lo_raw)
+    frac = max(0.0, min(1.0, frac))
+    log_lo = math.log10(PPM_ANCHOR_LOW_PPM)
+    log_hi = math.log10(PPM_ANCHOR_HIGH_PPM)
+    log_ppm = log_lo + frac * (log_hi - log_lo)
+    return round(10 ** log_ppm)
+
+def status_for_raw(raw):
+    if raw < 100:
+        return "Not Ready"
+    if raw < 300:
+        return "Building"
+    return "Good"
+
+def build_sensor_data():
+    out = []
+    for r in raw_readings:
+        d = PROJECT_START + timedelta(days=r["offset_days"])
+        out.append({
+            "date": d.strftime("%Y-%m-%d"),
+            "label": d.strftime("%d %b"),
+            "temp": r["temp"],
+            "methane": r["raw"],
+            "ppm": raw_to_ppm(r["raw"]),
+            "status": status_for_raw(r["raw"]),
+            "phase": r["phase"],
         })
-    base_time += 86400 * 3
+    return out
+
+sensor_data = build_sensor_data()
+
+# sd card raw log: 5 timestamped samples per reading day, jittered around the daily value
+random.seed(42)
+sd_log = []
+for i, r in enumerate(raw_readings):
+    day = PROJECT_START + timedelta(days=r["offset_days"])
+    for hour in [6, 10, 14, 18, 22]:
+        jitter_temp = round(r["temp"] + random.uniform(-0.35, 0.35), 2)
+        jitter_raw  = max(0, r["raw"] + random.randint(-9, 9))
+        ts = day.replace(hour=hour, minute=0, second=0)
+        sd_log.append({
+            "date": ts.strftime("%Y-%m-%d"),
+            "label": day.strftime("%d %b"),
+            "hour": f"{hour:02d}:00",
+            "temp": jitter_temp,
+            "methane": jitter_raw,
+            "ppm": raw_to_ppm(jitter_raw),
+        })
+
+# fake powerbank telemetry, one point per sd_log timestamp
+# capacity assumed 20000 mAh powerbank feeding an esp32 + ds18b20 + mq-4 + relay board
+# battery percent is simulated directly: it drains a few percent per sample and gets
+# topped up by the team once it runs low, which is what actually happens on site
+POWERBANK_CAPACITY_MAH = 20000
+AVG_DRAW_MA = 180
+power_log = []
+battery_pct = 98.0
+for i, entry in enumerate(sd_log):
+    draw = AVG_DRAW_MA + random.uniform(-15, 25)
+    battery_pct -= random.uniform(1.4, 2.6)
+    if battery_pct < 18:
+        battery_pct = random.uniform(95, 99)  # team swaps or recharges the powerbank
+    pct = round(max(0, min(100, battery_pct)), 1)
+    power_log.append({
+        "date": entry["date"],
+        "label": entry["label"],
+        "hour": entry["hour"],
+        "voltage": round(4.05 + (pct / 100) * 0.95 + random.uniform(-0.03, 0.03), 2),
+        "current_ma": round(draw, 1),
+        "battery_pct": pct,
+    })
+
+# ── food waste to biogas calculator ──
+# standard anaerobic digestion assumptions for mixed food waste, values pulled from
+# typical published ranges for small scale food waste digesters
+TS_FRACTION            = 0.20   # total solids as a fraction of wet feed mass
+VS_FRACTION_OF_TS       = 0.85   # volatile solids as a fraction of total solids
+BIOGAS_YIELD_PER_KG_VS  = 0.50   # m3 biogas per kg vs added
+CH4_FRACTION            = 0.60   # methane share of biogas by volume
+CH4_CALORIFIC_MJ_PER_M3 = 35.8   # energy content of methane
+HRT_DAYS                = 25     # hydraulic retention time
+SLURRY_LITERS_PER_KG    = 2.0    # 1:1 dilution with water by rough volume
+
+def calculate_biogas(kg_per_day):
+    ts_kg = kg_per_day * TS_FRACTION
+    vs_kg = ts_kg * VS_FRACTION_OF_TS
+    biogas_m3 = vs_kg * BIOGAS_YIELD_PER_KG_VS
+    ch4_m3 = biogas_m3 * CH4_FRACTION
+    energy_mj = ch4_m3 * CH4_CALORIFIC_MJ_PER_M3
+    energy_kwh = energy_mj / 3.6
+    slurry_liters_per_day = kg_per_day * SLURRY_LITERS_PER_KG
+    working_volume_m3 = slurry_liters_per_day * HRT_DAYS / 1000
+    headspace_ppm = round(CH4_FRACTION * 1_000_000)
+    return {
+        "kg_per_day": kg_per_day,
+        "ts_kg": round(ts_kg, 3),
+        "vs_kg": round(vs_kg, 3),
+        "biogas_m3_per_day": round(biogas_m3, 3),
+        "ch4_m3_per_day": round(ch4_m3, 3),
+        "energy_mj_per_day": round(energy_mj, 2),
+        "energy_kwh_per_day": round(energy_kwh, 2),
+        "slurry_liters_per_day": round(slurry_liters_per_day, 1),
+        "working_volume_m3": round(working_volume_m3, 2),
+        "headspace_ppm": headspace_ppm,
+        "hrt_days": HRT_DAYS,
+    }
 
 @app.route("/")
-def index():        return render_template("index.html")
+def index():
+    return render_template("index.html", active_page="dashboard")
 
 @app.route("/analytics")
-def analytics():    return render_template("analytics.html")
+def analytics():
+    return render_template("analytics.html", active_page="analytics")
 
 @app.route("/twin")
-def twin():         return render_template("twin.html")
+def twin():
+    return render_template("twin.html", active_page="twin")
 
 @app.route("/sdlog")
-def sdlog():        return render_template("sdlog.html")
+def sdlog():
+    return render_template("sdlog.html", active_page="sdlog")
 
 @app.route("/power")
-def power():        return render_template("power.html")
+def power():
+    return render_template("power.html", active_page="power")
 
 @app.route("/api/data")
 def get_data():
     return jsonify({
         "readings": sensor_data,
         "latest": sensor_data[-1],
-        "retrieved_at": datetime.now().strftime("%d %b %Y, %H:%M:%S"),
+        "project_start": PROJECT_START.strftime("%d %b %Y"),
+        "project_now": PROJECT_NOW.strftime("%d %b %Y"),
+        "retrieved_at": PROJECT_NOW.strftime("%d %b %Y, %H:%M:%S"),
         "source": "SD Card", "power": "Powerbank"
     })
 
 @app.route("/api/sdlog")
 def get_sdlog():
     return jsonify({"log": sd_log, "total": len(sd_log)})
+
+@app.route("/api/power")
+def get_power():
+    latest = power_log[-1]
+    return jsonify({"log": power_log, "latest": latest, "capacity_mah": POWERBANK_CAPACITY_MAH})
+
+@app.route("/api/foodwaste")
+def get_foodwaste():
+    kg = request.args.get("kg", default=2.0, type=float)
+    kg = max(0.0, min(20.0, kg))
+    return jsonify(calculate_biogas(kg))
 
 if __name__ == "__main__":
     app.run(debug=False)
